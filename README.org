@@ -12,6 +12,48 @@
 
 ** INSTALATION
 
+Paste the following into the =docker-compose.yml= file
+
+#+BEGIN_SRC yaml
+version: '3'
+
+services:
+  kitchen_1:
+    build: ./kitchen-server
+    ports:
+      - "3111:3111"
+    environment:
+      - USING_DOCKER_COMPOSE=1
+      - RESTAURANT_ID=1
+    depends_on: 
+      - restaurant-aggregator
+  kitchen_2:
+    build: ./kitchen-server
+    ports:
+      - "3222:3222"
+    environment:
+      - USING_DOCKER_COMPOSE=1
+      - RESTAURANT_ID=2
+    depends_on: 
+      - restaurant-aggregator
+  restaurant-aggregator:
+    build: ./restaurant-aggregator-server
+    ports:
+      - "7777:7777"
+    environment:
+      - USING_DOCKER_COMPOSE=1
+  client-server:
+    build: ./client-server
+    ports:
+      - "3333:3333"
+    environment:
+      - USING_DOCKER_COMPOSE=1
+    depends_on: 
+      - restaurant-aggregator
+      - kitchen_1
+      - kitchen_2
+#+END_SRC
+
 ** ABOUT
 
 Client service represents component which simulates end clients of the system, which want just to order and pick up food from restaurant.
