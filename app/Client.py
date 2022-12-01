@@ -1,45 +1,71 @@
 import time
+import queue
 import random
 import requests
 
 from threading import Thread
 
 from app.modules import *
+from app.utils.RestaurantsHandler import RestaurantsHandler
 
 
-# Extend the Thread class to create Threads for the Tables.
 class Client(Thread):
     def __init__(self, client_id, *args, **kwargs):
         super(Client, self).__init__(name=f'Client-{client_id}', *args, **kwargs)
         self.client_id = client_id
+        self.__private_list = queue.Queue()
+    
 
     # Overide the run() method of the Thread class.
     def run(self):
-        while True:
-            order = {
-                'client_id': self.client_id,
-                'orders': self.generate_orders()
-            }
+        # Get the menus from available restaurants.
+        menu = RestaurantsHandler.handle_restaurants()
 
-            _ = requests.post(
-                url=f'http://restaurant-aggregator:{AGGREGATOR_PORT}/order',
-                json=order
-            )
+        # Hmmm... 😴💤
+        time.sleep(random.randint(5, 10) * TIME_UNIT)
 
-            time.sleep(15)
+        # Generate order based on the menu.
+        order = self.generate_order(menu)
 
-    def __get_restaurant_menu(self, restaurant_id):
-        return list(restaurants_list['restaurants_data'][restaurant_id]['menu'].keys())
+    
+        response = requests.post(
+            url=f'http://food-ordering:{FOOD_ORDERING_PORT}/order',
+            json=order
+        )
 
-    def generate_orders(self):
-        # Select random restaurants' ids from restaurants_list
-        order_restaurants_ids = [0, 1]
+        # NOTE! the call to get() will block until an item is available to retrieve from the queue.
+        _ = self.__private_list.get()
 
+        # TODO: Function to rate the order here.
+    
+
+    def generate_order(self, menu):
+        # Get the number of available restaurants.
+        n = menu.get('restaurants')
+
+        # Select random restaurants' ids from the list.
+        restaurants_ids = random.sample(range(1, n + 1), random.randint(1, n))
+        
         order_menu = [{
-            'restaurant_id': el,
-            'items': [random.choices(self.__get_restaurant_menu(el), k=random.randint(1, 13))], 
-        } for el in order_restaurants_ids]
+            'restaurant_id': id,
+            'items': random.choices(self.__get_restaurant_menu(id, menu), k=random.randint(1, 5)),
+            'priority': None,
+            'max_wait': None,
+            'created_time': time.time()
+        } for id in restaurants_ids]
 
-        return order_menu
+        order = {
+            'client_id': self.client_id,
+            'orders': order_menu
+        }
 
+        return order
+    
+
+    def __get_restaurant_menu(self, restaurant_id, menu):
+        restaurant_menu = menu.get('restaurants_data')
+
+        r = filter(lambda el: (el.get('id') == restaurant_id), restaurant_menu)
+        
+        return list(int(x) for x in list(r)[0].get('menu'))
     
